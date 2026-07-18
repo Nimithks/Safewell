@@ -1,0 +1,1 @@
+"""SafeWell backend app package."""
