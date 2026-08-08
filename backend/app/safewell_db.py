@@ -4,7 +4,7 @@ import hmac
 import secrets
 import sqlite3
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
 from datetime import datetime, timedelta
 
 DB_SCHEMA = [
@@ -166,7 +166,7 @@ def init_db(db_path: str):
     conn.close()
 
 
-def ensure_columns(conn: sqlite3.Connection, table_name: str, columns: Dict[str, str]) -> None:
+def ensure_columns(conn: sqlite3.Connection, table_name: str, columns: dict[str, str]) -> None:
     cur = conn.cursor()
     cur.execute(f"PRAGMA table_info({table_name})")
     existing = {row[1] for row in cur.fetchall()}
@@ -189,11 +189,10 @@ def to_boolean(value: Any) -> bool:
 
 def toNumber(value: Any) -> float:
     try:
-        parsed = float(value)
-    except Exception:
+        val = float(value)
+        return 0.0 if val != val else val
+    except (TypeError, ValueError):
         return 0.0
-
-    return parsed if parsed == parsed else 0.0
 
 
 def hash_password(password: str) -> str:
@@ -214,7 +213,7 @@ def verify_password(password: str, stored_hash: str) -> bool:
     return hmac.compare_digest(actual, expected)
 
 
-def serialize_user(row: Dict[str, Any]) -> Dict[str, Any]:
+def serialize_user(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": str(row["id"]),
         "name": toString(row["name"]),
@@ -230,16 +229,18 @@ def serialize_user(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def math_round(value: Any) -> int:
-    if value is None or value == "":
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
         return 0
-    return int(round(float(value)))
 
 
 def to_nullable_float(value: Any) -> float | None:
-    if value is None or value == "":
+    try:
+        val = float(value)
+        return None if val != val else val
+    except (TypeError, ValueError):
         return None
-    parsed = float(value)
-    return parsed if parsed == parsed else None
 
 
 def get_user_by_name(db_path: str, name: str):
@@ -328,7 +329,7 @@ def get_user_by_token(db_path: str, token: str):
     return dict(row) if row else None
 
 
-def serialize_profile(row: Dict[str, Any]) -> Dict[str, Any]:
+def serialize_profile(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": str(row["id"]),
         "userId": str(row["user_id"]),
@@ -342,7 +343,7 @@ def serialize_profile(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def serialize_checkin(row: Dict[str, Any]) -> Dict[str, Any]:
+def serialize_checkin(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "checkpointId": toString(row.get("checkpoint_id")),
         "checkpointLabel": toString(row.get("checkpoint_label")),
@@ -355,7 +356,7 @@ def serialize_checkin(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def serialize_history(row: Dict[str, Any]) -> Dict[str, Any]:
+def serialize_history(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": str(row["id"]),
         "checkpointId": toString(row.get("checkpoint_id")),
@@ -370,7 +371,7 @@ def serialize_history(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def list_profiles(db_path: str, user_id: int) -> List[Dict[str, Any]]:
+def list_profiles(db_path: str, user_id: int) -> list[dict[str, Any]]:
     conn = _conn(db_path)
     cur = conn.cursor()
     cur.execute("SELECT * FROM profiles WHERE user_id = ? ORDER BY updated_at DESC, id DESC", (user_id,))
@@ -379,7 +380,7 @@ def list_profiles(db_path: str, user_id: int) -> List[Dict[str, Any]]:
     return rows
 
 
-def _replace_checkins(conn: sqlite3.Connection, profile_id: int, checkins: List[Dict[str, Any]]) -> None:
+def _replace_checkins(conn: sqlite3.Connection, profile_id: int, checkins: list[dict[str, Any]]) -> None:
     cur = conn.cursor()
     cur.execute("DELETE FROM checkins WHERE profile_id = ?", (profile_id,))
     cur.execute("DELETE FROM history WHERE profile_id = ?", (profile_id,))
@@ -438,7 +439,7 @@ def _replace_checkins(conn: sqlite3.Connection, profile_id: int, checkins: List[
             )
 
 
-def _profile_snapshot(conn: sqlite3.Connection, profile_id: int) -> Dict[str, Any] | None:
+def _profile_snapshot(conn: sqlite3.Connection, profile_id: int) -> dict[str, Any] | None:
     cur = conn.cursor()
     cur.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,))
     profile_row = cur.fetchone()
@@ -458,7 +459,7 @@ def _profile_snapshot(conn: sqlite3.Connection, profile_id: int) -> Dict[str, An
     }
 
 
-def create_profile(db_path: str, user_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+def create_profile(db_path: str, user_id: int, data: dict[str, Any]) -> dict[str, Any]:
     conn = _conn(db_path)
     cur = conn.cursor()
     timestamp = now_iso()
@@ -486,7 +487,7 @@ def create_profile(db_path: str, user_id: int, data: Dict[str, Any]) -> Dict[str
     return snapshot
 
 
-def get_profile(db_path: str, user_id: int, profile_id: int) -> Dict[str, Any]:
+def get_profile(db_path: str, user_id: int, profile_id: int) -> dict[str, Any]:
     conn = _conn(db_path)
     cur = conn.cursor()
     cur.execute("SELECT * FROM profiles WHERE id = ? AND user_id = ?", (profile_id, user_id))
@@ -501,7 +502,7 @@ def get_profile(db_path: str, user_id: int, profile_id: int) -> Dict[str, Any]:
     return snapshot
 
 
-def update_profile(db_path: str, user_id: int, profile_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+def update_profile(db_path: str, user_id: int, profile_id: int, data: dict[str, Any]) -> dict[str, Any]:
     conn = _conn(db_path)
     cur = conn.cursor()
     timestamp = now_iso()
@@ -540,7 +541,7 @@ def delete_profile(db_path: str, user_id: int, profile_id: int) -> bool:
     return changed
 
 
-def list_library(db_path: str) -> List[Dict[str, Any]]:
+def list_library(db_path: str) -> list[dict[str, Any]]:
     conn = _conn(db_path)
     cur = conn.cursor()
     cur.execute("SELECT * FROM library ORDER BY id")
@@ -548,68 +549,3 @@ def list_library(db_path: str) -> List[Dict[str, Any]]:
     conn.close()
     return rows
 
-
-# --- Safety logic ported from the original TypeScript ---
-def analyze_plan(height_cm: float, start_weight_kg: float, target_weight_kg: float, duration_days: int) -> Dict[str, Any]:
-    # Guardrails
-    healthy_bmi_floor = 18.5
-    body_weight_loss_cap = 0.01  # 1% per day
-    absolute_weekly_cap_kg = 1.0
-
-    height_m = height_cm / 100.0 if height_cm else None
-    bmi = None
-    if height_m and start_weight_kg:
-        bmi = start_weight_kg / (height_m * height_m)
-
-    # compute allowed minimal target based on BMI floor
-    min_safe_weight = None
-    if height_m:
-        min_safe_weight = healthy_bmi_floor * (height_m * height_m)
-
-    recommended = True
-    reasons = []
-
-    if target_weight_kg is None:
-        recommended = False
-        reasons.append("No target weight provided")
-
-    if min_safe_weight and target_weight_kg < min_safe_weight:
-        recommended = False
-        reasons.append("Target weight is below healthy BMI floor")
-
-    # max safe weekly loss
-    max_weekly = absolute_weekly_cap_kg
-    # implied daily cap from percent
-    max_daily_percent = body_weight_loss_cap
-
-    # compute required average daily loss to reach target
-    if duration_days and start_weight_kg and target_weight_kg is not None:
-        total_loss = max(0.0, start_weight_kg - target_weight_kg)
-        avg_daily_loss = total_loss / max(1, duration_days)
-        avg_weekly_loss = avg_daily_loss * 7
-        if avg_weekly_loss > max_weekly:
-            recommended = False
-            reasons.append(f"Requested pace ({avg_weekly_loss:.2f} kg/week) exceeds safe weekly cap ({max_weekly} kg/week)")
-        if avg_daily_loss > start_weight_kg * max_daily_percent:
-            recommended = False
-            reasons.append("Requested daily loss exceeds percentage-based cap")
-
-    return {
-        "recommended": recommended,
-        "reasons": reasons,
-        "bmi": round(bmi, 2) if bmi else None,
-        "min_safe_weight": round(min_safe_weight, 2) if min_safe_weight else None,
-    }
-
-
-def build_checkpoints(start_weight_kg: float, target_weight_kg: float, duration_days: int) -> List[Dict[str, Any]]:
-    checkpoints = []
-    if duration_days <= 0:
-        return checkpoints
-    total_loss = start_weight_kg - target_weight_kg
-    for day in range(1, duration_days + 1):
-        frac = day / duration_days
-        weight = round(start_weight_kg - total_loss * frac, 2)
-        date = (datetime.utcnow() + timedelta(days=day - 1)).date().isoformat()
-        checkpoints.append({"day": day, "date": date, "target_weight_kg": weight})
-    return checkpoints

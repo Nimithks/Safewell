@@ -1,10 +1,8 @@
 import os
 import json
 from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Any
 
-from fastapi import APIRouter, HTTPException, Header, Request, Query
+from fastapi import APIRouter, HTTPException, Header, Request
 import google.generativeai as genai
 
 from .. import safewell_db
@@ -12,14 +10,13 @@ from .auth import current_user
 
 router = APIRouter()
 
-def _db_path() -> str:
-    return str(Path(__file__).resolve().parents[2] / "data" / "safewell.db")
+DB_PATH = str(Path(__file__).resolve().parents[2] / "data" / "safewell.db")
 
 
 @router.get("/")
 def list_profiles(authorization: str | None = Header(default=None), token: str | None = None):
     user = current_user(authorization, token)
-    profiles = safewell_db.list_profiles(_db_path(), int(user["id"]))
+    profiles = safewell_db.list_profiles(DB_PATH, int(user["id"]))
     return {"profiles": profiles}
 
 
@@ -27,7 +24,7 @@ def list_profiles(authorization: str | None = Header(default=None), token: str |
 async def create_profile(request: Request, authorization: str | None = Header(default=None), token: str | None = None):
     user = current_user(authorization, token)
     data = await request.json()
-    snapshot = safewell_db.create_profile(_db_path(), int(user["id"]), data)
+    snapshot = safewell_db.create_profile(DB_PATH, int(user["id"]), data)
     return snapshot
 
 
@@ -51,7 +48,7 @@ def get_checkpoints(
 @router.get("/{profile_id}")
 def get_profile(profile_id: int, authorization: str | None = Header(default=None), token: str | None = None):
     user = current_user(authorization, token)
-    p = safewell_db.get_profile(_db_path(), int(user["id"]), profile_id)
+    p = safewell_db.get_profile(DB_PATH, int(user["id"]), profile_id)
     if not p:
         raise HTTPException(status_code=404, detail="Profile not found")
     return p
@@ -61,16 +58,16 @@ def get_profile(profile_id: int, authorization: str | None = Header(default=None
 async def update_profile(profile_id: int, request: Request, authorization: str | None = Header(default=None), token: str | None = None):
     user = current_user(authorization, token)
     data = await request.json()
-    p = safewell_db.get_profile(_db_path(), int(user["id"]), profile_id)
+    p = safewell_db.get_profile(DB_PATH, int(user["id"]), profile_id)
     if not p:
         raise HTTPException(status_code=404, detail="Profile not found")
-    return safewell_db.update_profile(_db_path(), int(user["id"]), profile_id, data)
+    return safewell_db.update_profile(DB_PATH, int(user["id"]), profile_id, data)
 
 
 @router.delete("/{profile_id}")
 def delete_profile(profile_id: int, authorization: str | None = Header(default=None), token: str | None = None):
     user = current_user(authorization, token)
-    ok = safewell_db.delete_profile(_db_path(), int(user["id"]), profile_id)
+    ok = safewell_db.delete_profile(DB_PATH, int(user["id"]), profile_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Profile not found")
     return {"deleted": True}
@@ -150,30 +147,22 @@ def generate_local_fallback_checkpoints(duration_days: int, plan_mode: str) -> l
             if duration_days <= 365: return ex_maint_one_year
             return ex_maint_two_year
 
-    def pick(arr, idx, take=2):
-        if not arr: return []
+    def pick(lst, start_idx, num):
         out = []
-        seen = set()
-        for i in range(len(arr)):
-            if len(out) >= take:
-                break
-            val = arr[(idx + i) % len(arr)]
-            if val not in seen:
-                seen.add(val)
-                out.append(val)
+        for i in range(num):
+            out.append(lst[(start_idx + i) % len(lst)])
         return out
 
     if duration_days <= 7:
-        for idx in range(duration_days):
-            day = idx + 1
+        for day in range(1, duration_days + 1):
             checkpoints.append({
                 "id": f"day-{day}",
                 "label": f"Day {day}",
                 "window": f"Day {day}",
-                "focus": "Set baseline measurements." if day == 1 else "Review the week." if day == duration_days else "Keep habits consistent.",
-                "food": pick(food_for("short"), idx, 2),
-                "exercise": pick(exercise_for("short"), idx, 2),
-                "recovery": "Aim for 7-9 hours sleep." if plan_mode == "loss" else "Stabilize meals and rest."
+                "focus": "Track physical metrics and check off baseline guidelines.",
+                "food": pick(food_for("short"), day - 1, 3),
+                "exercise": pick(exercise_for("short"), day - 1, 2),
+                "recovery": "Allow adequate sleep (7-8 hours) and active recovery."
             })
     elif duration_days <= 30:
         weeks = int((duration_days + 6) / 7)
@@ -185,10 +174,10 @@ def generate_local_fallback_checkpoints(duration_days: int, plan_mode: str) -> l
                 "id": f"week-{week}",
                 "label": f"Week {week}",
                 "window": f"Days {start}-{end}",
-                "focus": "Establish consistent meals." if week == 1 else "Summarize trend lines." if week == weeks else "Maintain consistent habit targets.",
+                "focus": f"Week {week} focus: establish core routine parameters.",
                 "food": pick(food_for("month"), idx * 2, 3),
                 "exercise": pick(exercise_for("month"), idx * 2, 2),
-                "recovery": "Weigh 2-3 times this week." if plan_mode == "loss" else "Focus on steady meals."
+                "recovery": "Focus on recovery quality between sessions."
             })
     elif duration_days <= 60:
         weeks = int((duration_days + 6) / 7)
@@ -300,7 +289,7 @@ def generate_ai_checkpoints(height_cm: float, current_weight_kg: float, goal_wei
             unit = "quarterly checkpoints (e.g. Quarter 1, Quarter 2)"
 
         prompt = f"""
-You are the SafeWell AI Plan Generator. Your task is to output a highly personalized, progressive health and weight management timeline plan as a JSON array of checkpoints.
+You are the SafeWell Plan Generator. Your task is to output a highly personalized, progressive health and weight management timeline plan as a JSON array of checkpoints.
 Create exactly {count} checkpoints matching the {unit} structure for a {duration_days}-day plan.
 
 User Stats:
@@ -364,6 +353,3 @@ You must return a JSON object with the key "checkpoints" containing a list of di
     except Exception as e:
         print(f"Gemini AI checkpoints generation failed: {e}")
         return generate_local_fallback_checkpoints(duration_days, plan_mode)
-
-
-

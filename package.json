@@ -1,28 +1,20 @@
 {
-  "name": "proj",
-  "version": "0.1.0",
+  "name": "safewell-frontend",
+  "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev --webpack",
-    "dev:api": "python -m uvicorn backend.app.main:app --reload --port 8001",
-    "build": "next build --webpack",
-    "start": "next start",
-    "lint": "eslint"
+    "dev": "vite --port 3000",
+    "build": "vite build",
+    "preview": "vite preview",
+    "dev:api": "python -m uvicorn backend.app.main:app --reload --port 8001"
   },
   "dependencies": {
-    "next": "16.2.6",
     "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "sql.js": "^1.14.1"
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.6",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.0.0"
   }
 }
