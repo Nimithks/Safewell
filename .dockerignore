@@ -1,0 +1,27 @@
+# Node & Build artifacts
+node_modules
+frontend/dist
+frontend/node_modules
+.npm
+
+# Python artifacts
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv
+env
+*.egg-info
+.pytest_cache
+
+# Version control & Environment
+.git
+.gitignore
+.dockerignore
+.vscode
+.idea
+*.log
+
+# Databases
+backend/data/*.db
